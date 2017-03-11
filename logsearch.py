@@ -1,4 +1,5 @@
 import glob
+import itertools
 import os
 import re
 import subprocess
@@ -10,7 +11,6 @@ class logsearch(znc.Module):
     description = "Search ZNC logs and return the results"
     module_types = [znc.CModInfo.GlobalModule, znc.CModInfo.UserModule]
 
-    LOG_ROOT = os.path.join(znc.CZNC.Get().GetZNCPath(), "moddata", "log")
     NUM_RESULTS = 10
     RESULTS_RE = re.compile("^.*/(?P<channel>.*?)/(?P<date>[0-9-]*)\.log:\[(?P<time>.*?)\] (?P<msg>.*)$")
     RESULTS_FMT = "{channel} [{date} {time}]: {msg}"
@@ -30,19 +30,30 @@ class logsearch(znc.Module):
         ('* ] \* .* dances', 'Search all logs for dancing users')
     )
 
+    def get_files(self, path_fmts, user, network, channel):
+        paths = (f.format(user=user, network=network, channel=channel) for f in path_fmts)
+        files = itertools.chain(*[glob.glob(p) for p in paths])
+        return files
+
     def do_search(self, channel, query):
         """Uses grep to search logs"""
-        user = self.GetUser().GetUserName().lower()
-        network = self.GetNetwork().GetName().lower()
 
-        network_path = os.path.join(self.LOG_ROOT, user, network)
-        if not os.path.isdir(network_path):
-            self.PutModule("No logs found for the current network (have you enabled the 'log' module?)")
-            return
+        user = self.GetUser()
+        network = self.GetNetwork()
 
-        # Collect all the log files to be searched
+        path_fmts = [
+            # Support log module at global, user, and network level
+            os.path.join(znc.CZNC.Get().GetZNCPath(), "moddata", "log", "{user}", "{network}", "{channel}", "*.log"),
+            os.path.join(user.GetUserPath(), "moddata", "log", "{network}", "{channel}", "*.log"),
+            os.path.join(network.GetNetworkPath(), "moddata", "log", "{channel}", "*.log")
+        ]
+
         disp_channel = channel
         channel = channel.lower()
+        user_name = user.GetUserName().lower()
+        network_name = network.GetName().lower()
+
+        # Collect all the log files to be searched
         if channel != "*":
             chan_type = "channel" if channel.startswith("#") else "user"
             if os.sep in channel:
@@ -53,16 +64,16 @@ class logsearch(znc.Module):
             if chan_type is "user":
                 channel = "[!#]{}".format(channel[1:])
 
-            files = glob.glob(os.path.join(network_path, channel, "*.log"))
+            files = self.get_files(path_fmts, user_name, network_name, channel)
             if not files:
                 self.PutModule("No log files for {} '{}' found".format(chan_type, disp_channel))
                 return
 
             self.PutModule("Results of searching the logs of {}s matching '{}' for '{}':".format(chan_type, disp_channel, query))
         else:
-            files = glob.glob(os.path.join(network_path, "*", "*.log"))
+            files = self.get_files(path_fmts, user_name, network_name, "*")
             if not files:
-                self.PutModule("No log files found")
+                self.PutModule("No log files found (have you enabled the log module?)")
                 return
 
             self.PutModule("Results of searching all logs for '{}':".format(query))
