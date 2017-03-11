@@ -123,7 +123,10 @@ class logsearch(znc.Module):
     def OnModCommand(self, cmd):
         """Process commands sent to the module"""
         cmd = unicodedata.normalize('NFKC', cmd).strip()
-        if not cmd or " " not in cmd or cmd in ("?", "help") or cmd[0] not in "*#@":
+        if not cmd or " " not in cmd \
+                or cmd in {"?", "help"} \
+                or cmd[0] not in "*#@" \
+                or (cmd[0] == "*" and not cmd.startswith("* ")):
             self.show_help()
             return
 
