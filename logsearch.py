@@ -3,9 +3,27 @@ import itertools
 import os
 import re
 import subprocess
+import sys
+import traceback
 import unicodedata
 
 import znc
+
+def debug(func):
+    """Causes the wrapped function to log errors to the client
+
+    WARNING: Leaks loads of data, ONLY use this for debugging
+    """
+    def debug_wrapper(self, *args, **kwargs):
+        try:
+            func(self, *args, **kwargs)
+        except Exception as e:
+            self.PutModule("{0.__class__.__name__}: {0}".format(e))
+            tb_text = traceback.format_tb(sys.exc_info()[2])
+            for x in tb_text:
+                self.PutModule(x)
+            raise
+    return debug_wrapper
 
 class logsearch(znc.Module):
     description = "Search ZNC logs and return the results"
@@ -120,6 +138,7 @@ class logsearch(znc.Module):
             tbl.SetCell("Result", v)
         self.PutModule(tbl)
 
+    #@debug
     def OnModCommand(self, cmd):
         """Process commands sent to the module"""
         cmd = unicodedata.normalize('NFKC', cmd).strip()
@@ -131,11 +150,7 @@ class logsearch(znc.Module):
             return
 
         channel, query = cmd.split(" ", 1)
-        try:
-            results = self.do_search(channel, query)
-        except Exception as e:
-            self.PutModule("{0.__class__.__name__}: {0}".format(e))
-            return
+        results = self.do_search(channel, query)
 
         if results:
             num = len(results)
