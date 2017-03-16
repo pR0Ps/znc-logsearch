@@ -29,7 +29,7 @@ class logsearch(znc.Module):
     description = "Search ZNC logs and return the results"
     module_types = [znc.CModInfo.GlobalModule, znc.CModInfo.UserModule]
 
-    NUM_RESULTS = 10
+    NUM_RESULTS = 30
     RESULTS_RE = re.compile("^.*/(?P<channel>.*?)/(?P<date>[0-9-]*)\.log:\[(?P<time>.*?)\] (?P<msg>.*)$")
     RESULTS_FMT = "{channel} [{date} {time}]: {msg}"
 
@@ -110,7 +110,22 @@ class logsearch(znc.Module):
             self.PutModule("ERROR searching logs (return code {}):".format(code))
             self.PutModule(err)
 
-        return [self.RESULTS_FMT.format(**self.RESULTS_RE.match(x).groupdict()) for x in out.splitlines()]
+        return [self.RESULTS_RE.match(x).groupdict() for x in out.splitlines()]
+
+    def results_sort(self, result):
+        """Sort the search results for display"""
+        return [result[x] for x in ("channel", "date", "time")]
+
+    def results_sort_time(self, result):
+        """Sort the search results by time"""
+        return [result[x] for x in ("date", "time")]
+
+    def limit_results(self, results):
+        """Remove the oldest entries to stay within the output limit"""
+        extra = max(0, len(results) - self.NUM_RESULTS)
+        if extra:
+            results = sorted(results, key=self.results_sort_time, reverse=True)[:self.NUM_RESULTS]
+        return sorted(results, key=self.results_sort), extra
 
     def show_help(self):
         self.PutModule("{0.__class__.__name__}: {0.description}".format(self))
@@ -153,8 +168,8 @@ class logsearch(znc.Module):
         results = self.do_search(channel, query)
 
         if results:
-            num = len(results)
-            for r in results[:self.NUM_RESULTS]:
-                self.PutModule(r)
-            if num > self.NUM_RESULTS:
-                self.PutModule("{} more results not shown".format(num - self.NUM_RESULTS))
+            results, num_extra = self.limit_results(results)
+            for r in results:
+                self.PutModule(self.RESULTS_FMT.format(**r))
+            if num_extra:
+                self.PutModule("{} earlier results not shown".format(num_extra))
