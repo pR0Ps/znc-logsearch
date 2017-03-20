@@ -33,7 +33,8 @@ logsearch: Search ZNC logs and return the results
 
 The functionality of this module is provided by shell globbing and grep.
 This means that the channel/user portion of the command obeys normal globbing rules.
-The query is fed directly into "grep -i", which means that normal regex is supported.
+The query is fed directly into "grep -i", which means that normal regex is supported where it is
+supprted on the system ZNC is running on.
 
 Commands:
 +====================+========================================+
@@ -65,6 +66,15 @@ Examples:
 | * ] \* .* dances | Search all logs for dancing users                  |
 +==================+====================================================+
 ```
+
+Local testing
+-------------
+It's possible to test the majority of the functionality of this module without having ZNC installed.
+Running `./testlocal.py` will perform a search over the `moddata/log` directory in the local
+directory.
+
+This folder should have the same structure as the `moddata/log` folder that the ZNC `log` module
+produces when loaded as a global module in ZNC.
 
 License
 -------
