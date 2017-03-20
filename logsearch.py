@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import glob
 import itertools
 import os
@@ -8,6 +10,7 @@ import traceback
 import unicodedata
 
 import znc
+
 
 def debug(func):
     """Causes the wrapped function to log errors to the client
@@ -24,6 +27,7 @@ def debug(func):
                 self.PutModule(x)
             raise
     return debug_wrapper
+
 
 class logsearch(znc.Module):
     description = "Search ZNC logs and return the results"
@@ -48,10 +52,22 @@ class logsearch(znc.Module):
         ('* ] \* .* dances', 'Search all logs for dancing users')
     )
 
+    def sort_path(self, path):
+        """Sort by the filename (the datestamp)"""
+        return os.path.basename(path)
+
+    def sort_result(self, result):
+        """Sort the search results for display"""
+        return [result[x] for x in ("channel", "date", "time")]
+
+    def sort_result_time(self, result):
+        """Sort the search results by time"""
+        return [result[x] for x in ("date", "time")]
+
     def get_files(self, path_fmts, user, network, channel):
         paths = (f.format(user=user, network=network, channel=channel) for f in path_fmts)
         files = itertools.chain(*[glob.glob(p) for p in paths])
-        return files
+        return sorted(files, key=self.sort_path, reverse=True)
 
     def do_search(self, channel, query):
         """Uses grep to search logs"""
@@ -61,9 +77,12 @@ class logsearch(znc.Module):
 
         path_fmts = [
             # Support log module at global, user, and network level
-            os.path.join(znc.CZNC.Get().GetZNCPath(), "moddata", "log", "{user}", "{network}", "{channel}", "*.log"),
-            os.path.join(user.GetUserPath(), "moddata", "log", "{network}", "{channel}", "*.log"),
-            os.path.join(network.GetNetworkPath(), "moddata", "log", "{channel}", "*.log")
+            os.path.join(znc.CZNC.Get().GetZNCPath(), "moddata", "log",
+                         "{user}", "{network}", "{channel}", "*.log"),
+            os.path.join(user.GetUserPath(), "moddata", "log",
+                         "{network}", "{channel}", "*.log"),
+            os.path.join(network.GetNetworkPath(), "moddata", "log",
+                         "{channel}", "*.log")
         ]
 
         disp_channel = channel
@@ -99,33 +118,49 @@ class logsearch(znc.Module):
         cmd = ["grep", "-i", query]
         cmd.extend(files)
 
-        p = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = (x.decode("utf-8") for x in p.communicate())
-        code = p.returncode
+        # Start the search, pull results out until we have enough to display
+        ret = []
+        code = 0
+        stopping = None
+        partial_results = True
+        try:
+            p = subprocess.Popen(cmd, stderr=subprocess.DEVNULL,
+                                 stdout=subprocess.PIPE)
+        except OSError as e:
+            self.PutModule("ERROR calling grep (is it available on the path?)")
+            return
 
-        if code == 1:
+        for num, line in enumerate(p.stdout):
+            line = line.decode("utf-8", errors="replace").rstrip()
+            data = self.RESULTS_RE.match(line).groupdict()
+
+            if stopping is not None and stopping != data["date"]:
+                p.terminate()
+                break
+
+            if num >= self.NUM_RESULTS:
+                stopping = data["date"]
+
+            ret.append(data)
+        else:
+            partial_results = False
+            code = p.wait()
+
+        if not ret or code == 1:
             self.PutModule("No matches found")
             return
         elif code != 0:
-            self.PutModule("ERROR searching logs (return code {}):".format(code))
-            self.PutModule(err)
+            self.PutModule("ERROR searching logs (return code {} from grep)".format(code))
+            return
 
-        return [self.RESULTS_RE.match(x).groupdict() for x in out.splitlines()]
-
-    def results_sort(self, result):
-        """Sort the search results for display"""
-        return [result[x] for x in ("channel", "date", "time")]
-
-    def results_sort_time(self, result):
-        """Sort the search results by time"""
-        return [result[x] for x in ("date", "time")]
+        return ret, partial_results
 
     def limit_results(self, results):
         """Remove the oldest entries to stay within the output limit"""
         extra = max(0, len(results) - self.NUM_RESULTS)
         if extra:
-            results = sorted(results, key=self.results_sort_time, reverse=True)[:self.NUM_RESULTS]
-        return sorted(results, key=self.results_sort), extra
+            results = sorted(results, key=self.sort_result_time, reverse=True)[:self.NUM_RESULTS]
+        return sorted(results, key=self.sort_result)
 
     def show_help(self):
         self.PutModule("{0.__class__.__name__}: {0.description}".format(self))
@@ -165,11 +200,11 @@ class logsearch(znc.Module):
             return
 
         channel, query = cmd.split(" ", 1)
-        results = self.do_search(channel, query)
+        temp = self.do_search(channel, query)
+        if temp:
+            results, partial = temp
 
-        if results:
-            results, num_extra = self.limit_results(results)
-            for r in results:
+            for r in self.limit_results(results):
                 self.PutModule(self.RESULTS_FMT.format(**r))
-            if num_extra:
-                self.PutModule("{} earlier results not shown".format(num_extra))
+            if partial or len(results) > self.NUM_RESULTS:
+                self.PutModule("Some earlier results not shown")
