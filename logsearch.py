@@ -115,7 +115,7 @@ class logsearch(znc.Module):
 
             self.PutModule("Results of searching all logs for '{}':".format(query))
 
-        cmd = ["grep", "-i", query]
+        cmd = ["grep", "-i", "--text", "--with-filename", "-e", query]
         cmd.extend(files)
 
         # Start the search, pull results out until we have enough to display
