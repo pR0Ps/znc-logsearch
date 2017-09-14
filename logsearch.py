@@ -37,6 +37,11 @@ class logsearch(znc.Module):
     RESULTS_RE = re.compile("^.*/(?P<channel>.*?)/(?P<date>[0-9-]*)\.log:\[(?P<time>.*?)\] (?P<msg>.*)$")
     RESULTS_FMT = "{channel} [{date} {time}]: {msg}"
 
+    HELP = (
+        "The functionality of this module is provided by shell globbing and grep.",
+        "The channel/user portion of the command uses normal globbing rules (\"*\" matches anything).",
+        "The query is fed directly into \"grep -i\" and uses normal regex rules (\".*\" matches anything)."
+    )
     CMDS = (
         ('?/help', 'Shows the help text'),
         ('* <query>', 'Search all logs for <query>'),
@@ -44,12 +49,14 @@ class logsearch(znc.Module):
         ('@<user> <query>', 'Search logs to/from <user> for <query>')
     )
     EXAMPLES = (
-        ('#hi hi', 'Search for messages in the #hi channel saying "hi"'),
-        ('@* hello', 'Search for any private messages saying "hello"'),
-        ('#* znc', 'Search for mentions of ZNC in any channel'),
-        ('* znc', 'Search all channel and user logs for znc'),
-        ('#znc* testing', 'Search channels starting with "znc" for "testing"'),
-        ('* ] \* .* dances', 'Search all logs for dancing users')
+        ('#hi hi', 'Messages in the #hi channel saying "hi"'),
+        ('@NickServ .*', 'Any private messages to/from NickServ'),
+        ('@* hello', 'Any private messages saying "hello"'),
+        ('#* znc', 'Mentions of ZNC in any channel'),
+        ('#znc* testing', 'Messages in channels starting with "znc" saying "testing"'),
+        ('* znc', 'Mentions of ZNC in any logs (channel or private message)'),
+        ('* ] \* .* dances', 'Dancing users in any logs'),
+        ('* .*', 'Any messages in any logs')
     )
 
     def sort_path(self, path):
@@ -163,11 +170,9 @@ class logsearch(znc.Module):
         return sorted(results, key=self.sort_result)
 
     def show_help(self):
-        self.PutModule("{0.__class__.__name__}: {0.description}".format(self))
-        self.PutModule("\nThe functionality of this module is provided by shell globbing and grep.")
-        self.PutModule("This means that the channel/user portion of the command obeys normal globbing rules.")
-        self.PutModule("The query is fed directly into \"grep -i\", which means that normal regex is supported.")
-
+        self.PutModule("{0.__class__.__name__}: {0.description}\n".format(self))
+        for h in self.HELP:
+            self.PutModule(h)
         self.PutModule("\nCommands:")
         tbl = znc.CTable()
         tbl.AddColumn("Command")

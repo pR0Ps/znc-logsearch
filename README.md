@@ -32,9 +32,8 @@ Usage
 logsearch: Search ZNC logs and return the results
 
 The functionality of this module is provided by shell globbing and grep.
-This means that the channel/user portion of the command obeys normal globbing rules.
-The query is fed directly into "grep -i", which means that normal regex is supported where it is
-supprted on the system ZNC is running on.
+The channel/user portion of the command uses normal globbing rules ("*" matches anything).
+The query is fed directly into "grep -i" and uses normal regex rules (".*" matches anything).
 
 Commands:
 +====================+========================================+
@@ -50,21 +49,25 @@ Commands:
 +====================+========================================+
 
 Examples:
-+==================+====================================================+
-| Command          | Result                                             |
-+==================+====================================================+
-| #hi hi           | Search for messages in the #hi channel saying "hi" |
-+------------------+----------------------------------------------------+
-| @* hello         | Search for any private messages saying "hello"     |
-+------------------+----------------------------------------------------+
-| #* znc           | Search for mentions of ZNC in any channel          |
-+------------------+----------------------------------------------------+
-| * znc            | Search all channel and user logs for znc           |
-+------------------+----------------------------------------------------+
-| #znc* testing    | Search channels starting with "znc" for "testing"  |
-+------------------+----------------------------------------------------+
-| * ] \* .* dances | Search all logs for dancing users                  |
-+==================+====================================================+
++==================+===========================================================+
+| Command          | Result                                                    |
++==================+===========================================================+
+| #hi hi           | Messages in the #hi channel saying "hi"                   |
++------------------+-----------------------------------------------------------+
+| @NickServ .*     | Any private messages to/from NickServ                     |
++------------------+-----------------------------------------------------------+
+| @* hello         | Any private messages saying "hello"                       |
++------------------+-----------------------------------------------------------+
+| #* znc           | Mentions of ZNC in any channel                            |
++------------------+-----------------------------------------------------------+
+| #znc* testing    | Messages in channels starting with "znc" saying "testing" |
++------------------+-----------------------------------------------------------+
+| * znc            | Mentions of ZNC in any logs (channel or private message)  |
++------------------+-----------------------------------------------------------+
+| * ] \* .* dances | Dancing users in any logs                                 |
++------------------+-----------------------------------------------------------+
+| * .*             | Any messages in any logs                                  |
++==================+===========================================================+
 ```
 
 Local testing
