@@ -121,15 +121,15 @@ class logsearch(znc.Module):
         stopping = None
         partial_results = True
         try:
-            p = subprocess.Popen(cmd, stderr=subprocess.DEVNULL,
-                                 stdout=subprocess.PIPE)
+            p = subprocess.Popen(cmd, universal_newlines=True, bufsize=1,
+                                 encoding='utf-8', errors='replace',
+                                 stderr=subprocess.DEVNULL, stdout=subprocess.PIPE)
         except OSError as e:
             self.PutModule("ERROR calling grep (is it available on the path?)")
             return
 
         for num, line in enumerate(p.stdout):
-            line = line.decode("utf-8", errors="replace").rstrip()
-            data = self.RESULTS_RE.match(line).groupdict()
+            data = self.RESULTS_RE.match(line.rstrip()).groupdict()
 
             if stopping is not None and stopping != data["date"]:
                 p.terminate()
