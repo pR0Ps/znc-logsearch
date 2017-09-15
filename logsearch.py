@@ -2,6 +2,7 @@
 
 import glob
 import itertools
+import operator
 import os
 import re
 import subprocess
@@ -59,22 +60,11 @@ class logsearch(znc.Module):
         ('* .*', 'Any messages in any logs')
     )
 
-    def sort_path(self, path):
-        """Sort by the filename (the datestamp)"""
-        return os.path.basename(path)
-
-    def sort_result(self, result):
-        """Sort the search results for display"""
-        return [result[x] for x in ("channel", "date", "time")]
-
-    def sort_result_time(self, result):
-        """Sort the search results by time"""
-        return [result[x] for x in ("date", "time")]
-
     def get_files(self, path_fmts, user, network, channel):
         paths = (f.format(user=user, network=network, channel=channel) for f in path_fmts)
         files = itertools.chain(*[glob.glob(p) for p in paths])
-        return sorted(files, key=self.sort_path, reverse=True)
+        # Sort by date (the filename)
+        return sorted(files, key=os.path.basename, reverse=True)
 
     def do_search(self, channel, query):
         """Uses grep to search logs"""
@@ -162,12 +152,15 @@ class logsearch(znc.Module):
 
         return ret, partial_results
 
-    def limit_results(self, results):
-        """Remove the oldest entries to stay within the output limit"""
-        extra = max(0, len(results) - self.NUM_RESULTS)
-        if extra:
-            results = sorted(results, key=self.sort_result_time, reverse=True)[:self.NUM_RESULTS]
-        return sorted(results, key=self.sort_result)
+    def limited_results(self, results):
+        """Remove the oldest entries to stay within the output limit
+
+        Returns the results sorted by channel/date/time for display
+        """
+        if len(results) > self.NUM_RESULTS:
+            results = sorted(results, key=operator.itemgetter('date', 'time'),
+                             reverse=True)[:self.NUM_RESULTS]
+        return sorted(results, key=operator.itemgetter('channel', 'date', 'time'))
 
     def show_help(self):
         self.PutModule("{0.__class__.__name__}: {0.description}\n".format(self))
@@ -209,7 +202,7 @@ class logsearch(znc.Module):
         if temp:
             results, partial = temp
 
-            for r in self.limit_results(results):
+            for r in self.limited_results(results):
                 self.PutModule(self.RESULTS_FMT.format(**r))
             if partial or len(results) > self.NUM_RESULTS:
                 self.PutModule("Some earlier results not shown")
