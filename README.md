@@ -5,7 +5,8 @@ znc-logsearch is a [ZNC][] module. It allows users to search the log files made 
 
 Requirements
 ------------
- - The ZNC server must have the [log module][] enabled for there to be any logs to search.
+ - The ZNC server must be running ZNC v1.6.0 or later.
+ - The ZNC server must have the [log module][] enabled using the default configuration
  - The ZNC server must have `grep` on the PATH of the user ZNC is running under.
 
 Warning
